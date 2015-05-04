@@ -91,12 +91,14 @@
         </div>
       </div>
       <div style="clear: both;"></div>
-      <h2 class="chart-label">Open Sheet</h2>
-      <div id="openSheetGraph" class="report-chart"></div>
-      <div id="openSheetTable" class="report-chart"></div>
-      <h2 class="chart-label">Sheet List</h2>
-      <div id="sheetListGraph" class="report-chart"></div>
-      <div id="sheetListTable" class="report-chart"></div>
+      <div class="report">
+        <h2 class="chart-label">Open Sheet</h2>
+        <div id="openSheetGraph" class="report-chart"></div>
+        <div id="openSheetTable" class="report-chart"></div>
+        <h2 class="chart-label">Sheet List</h2>
+        <div id="sheetListGraph" class="report-chart"></div>
+        <div id="sheetListTable" class="report-chart"></div>
+      </div>
     </div>
     <script>
     
@@ -167,6 +169,10 @@
         // otherwise, if search term was submitted run function
         else {
           
+          // reset html for new query
+          $('.report').html('<h2 class="chart-label">Open Sheet</h2><div id="openSheetGraph" class="report-chart"></div><div id="openSheetTable" class="report-chart"></div><h2 class="chart-label">Sheet List</h2><div id="sheetListGraph" class="report-chart"></div><div id="sheetListTable" class="report-chart"></div>');
+          
+          // grab values from dropdowns and set parameters
           var dateRange = dateSelect.MPDatepicker('value'),
               typeName = typeSelect.MPSelect('value'),
               intervalType = intervalSelect.MPSelect('value'),
@@ -213,7 +219,27 @@
                   'event': 'sheetList',
                   'interval': getInterval(dateRange),
                   "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
+                }),
+
+                openSheetGraph = $('#openSheetGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
+                    tooltip: {
+                        backgroundColor: '#fffce7'  // Make tooltip background yellow
+                    }
+                }}),
+                openSheetTable = $('#openSheetTable').MPTable({
+                  showPercentages: true,
+                  firstColHeader: 'Name'
+                }),
+                sheetListGraph = $('#sheetListGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
+                    tooltip: {
+                        backgroundColor: '#fffce7'  // Make tooltip background yellow
+                    }
+                }}),
+                sheetListTable = $('#sheetListTable').MPTable({
+                  showPercentages: true,
+                  firstColHeader: 'Name'
                 });
+
                 
             //get the data from the API and reorganize the data
             MP.api.query(endpoint, params).done(function(results) {
@@ -246,7 +272,7 @@
               openSheetTable.MPTable('setData', output);
             });
               
-            MP.api.query(endpoint, params).done(function(results) {
+            MP.api.query(endpoint, sheetListParams).done(function(results) {
               var listOutput = {}
               var query = results["data"]["values"]
               
@@ -279,23 +305,23 @@
           else {
             // set options for 2 MP graphs and MP tables
             var openSheetGraph = $('#openSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
-                tooltip: {
-                    backgroundColor: '#fffce7'  // Make tooltip background yellow
-                }
-            }}),
-            openSheetTable = $('#openSheetTable').MPTable({
-              showPercentages: true,
-              firstColHeader: 'Name'
-            }),
-            sheetListGraph = $('#sheetListGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
-                tooltip: {
-                    backgroundColor: '#fffce7'  // Make tooltip background yellow
-                }
-            }}),
-            sheetListTable = $('#sheetListTable').MPTable({
-              showPercentages: true,
-              firstColHeader: 'Name'
-            });
+                    tooltip: {
+                        backgroundColor: '#fffce7'  // Make tooltip background yellow
+                    }
+                }}),
+                openSheetTable = $('#openSheetTable').MPTable({
+                  showPercentages: true,
+                  firstColHeader: 'Name'
+                }),
+                sheetListGraph = $('#sheetListGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
+                    tooltip: {
+                        backgroundColor: '#fffce7'  // Make tooltip background yellow
+                    }
+                }}),
+                sheetListTable = $('#sheetListTable').MPTable({
+                  showPercentages: true,
+                  firstColHeader: 'Name'
+                });
           
             // run segmentation queries
             MP.api.segment('openSheet', 'name', params).done(function(openResults) {
@@ -323,12 +349,14 @@
         runQuery();
       });
       chartSelect.on('change', function() {
-        $('#openSheetGraph').html('');
         runQuery();
       });
       propSelect.on('change', function() {
         if ( $(this).MPSelect('value') != '' ) {
           $('#chartSelect').hide();
+        }
+        else {
+          $('#chartSelect').show();
         }
         runQuery();
       });
