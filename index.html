@@ -70,7 +70,7 @@
     <div class="mixpanel-platform-section">
       <div class="instructions">
         <h1>HealthShare Sponsor Report</h1>
-        <p class="description">Please enter a sponsor name before selecting events.</p>
+        <p class="description">Please enter a sponsor name before selecting options.</p>
       </div>
       <div class="selections">
         <div class="left">
@@ -82,6 +82,7 @@
             <p class="confirm-text"></p>
           </div>
           <div id="dateSelect"></div>
+          <div id="by" class="mixpanel-platform-label">by</div>
           <div id="propSelect"></div>
         </div>
         <div class="right">
@@ -102,10 +103,8 @@
     </div>
     <script>
     
-      // populate dropdowns and add a date picker
+      // add a date picker and populate dropdowns
       var dateSelect  = $('#dateSelect').MPDatepicker(),
-          // add type select (total, unique, average), interval select (hour, day, week, month),
-          // and chart select (line, bar, pie, map)
           options = {
             items: [
               {label: 'Total', value: 'general'},
@@ -125,8 +124,7 @@
             items: [
               {label: 'Line', value: 'line'},
               {label: 'Bar', value: 'bar'},
-              {label: 'Pie', value: 'pie'},
-              {label: 'Map', value: 'map'}
+              {label: 'Pie', value: 'pie'}
               ]
           }
           options4 = {
@@ -147,7 +145,7 @@
       // set default interval to daily
       $('#intervalSelect').val('day');
 
-      // record search term when company name is submitted and find # users who match search term
+      // record search term when sponsor name is submitted
       $('#sponsor').submit(function(e) {
         e.preventDefault();
         sponsorName = $('#sponsor input:first').val();
@@ -166,164 +164,138 @@
             .css("color", "red");
         }
         
-        // otherwise, if search term was submitted run function
+        // if search term was submitted run function
         else {
           
-          // reset html for new query
+          // reset html for each new query (necessary for chart type changes)
           $('.report').html('<h2 class="chart-label">Open Sheet</h2><div id="openSheetGraph" class="report-chart"></div><div id="openSheetTable" class="report-chart"></div><h2 class="chart-label">Sheet List</h2><div id="sheetListGraph" class="report-chart"></div><div id="sheetListTable" class="report-chart"></div>');
           
-          // grab values from dropdowns and set parameters
+          // grab values from dropdowns and set up tables
           var dateRange = dateSelect.MPDatepicker('value'),
               typeName = typeSelect.MPSelect('value'),
               intervalType = intervalSelect.MPSelect('value'),
               chartTypeVal = chartSelect.MPSelect('value'),
               multiSegType = propSelect.MPSelect('value'),
-              params = {
-                from: dateRange.from,
-                to: dateRange.to,
-                type: typeName,
-                unit: intervalType,
-                // set parameter that looks for the specific sponsor name by which we will filter all events
-                "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
-              },
-              sheetListParams = {
-                from: dateRange.from,
-                to: dateRange.to,
-                type: typeName,
-                unit: intervalType,
-                // set parameter that looks for the specific sponsor name by which we will filter all events
-                "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
-              };
-              
-          //find interval for bar chart 'interval' param
-          getInterval = function(dates) {
-            intervalDays = Math.ceil((dates.to - dates.from) / (24 * 60 * 60 * 1000)) + 1
-            return intervalDays
-          }
+              openSheetTable = $('#openSheetTable').MPTable({
+                showPercentages: true,
+                firstColHeader: 'Name'
+              }),
+              sheetListTable = $('#sheetListTable').MPTable({
+                showPercentages: true,
+                firstColHeader: 'Name'
+              });
+
           
-          // if City or State is selected as a second dimension, set up a stacked bar chart
+          // if city or state is selected as a second dimension, set up stacked bar charts
           if (multiSegType) {
+            
+            // find interval for bar chart 'interval' param
+            getInterval = function(dates) {
+              intervalDays = Math.ceil((dates.to - dates.from) / (24 * 60 * 60 * 1000)) + 1
+              return intervalDays
+            }
+
             var endpoint = '/api/2.0/segmentation/multiseg',
                 params =  $.extend({}, dateRange, {
-                  'type': typeName,
-                  'inner': 'properties[\"name\"]',
-                  'outer': 'properties[\"' + multiSegType + '\"]',
-                  'event': 'openSheet',
-                  'interval': getInterval(dateRange),
+                  "type": typeName,
+                  "inner": "properties[\"" + multiSegType + "\"]",
+                  "outer": "properties[\"name\"]",
+                  "event": "openSheet",
+                  "interval": getInterval(dateRange),
+                  // set parameter that looks for the specific sponsor name by which we will filter all events
                   "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
                 });
                 sheetListParams =  $.extend({}, dateRange, {
-                  'type': typeName,
-                  'inner': 'properties[\"names\"]',
-                  'outer': 'properties[\"' + multiSegType + '\"]',
-                  'event': 'sheetList',
-                  'interval': getInterval(dateRange),
+                  "type": typeName,
+                  "inner": "properties[\"" + multiSegType + "\"]",
+                  "outer": "properties[\"names\"]",
+                  "event": "sheetList",
+                  "interval": getInterval(dateRange),
+                  // set parameter that looks for the specific sponsor name by which we will filter all events
                   "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
                 }),
-
+                
+                // set up stacked bar graphs
                 openSheetGraph = $('#openSheetGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
                     tooltip: {
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
                     }
                 }}),
-                openSheetTable = $('#openSheetTable').MPTable({
-                  showPercentages: true,
-                  firstColHeader: 'Name'
-                }),
                 sheetListGraph = $('#sheetListGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
                     tooltip: {
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
                     }
-                }}),
-                sheetListTable = $('#sheetListTable').MPTable({
-                  showPercentages: true,
-                  firstColHeader: 'Name'
-                });
-
+                }});
                 
-            //get the data from the API and reorganize the data
-            MP.api.query(endpoint, params).done(function(results) {
-              var output = {}
-              var query = results["data"]["values"]
-              
-              _.each(_.keys(query), function(properties){
-                var property = query[properties]
+            // query an event segmented by 2 properties and reorganize the data for a stacked bar chart
+            function mpquery(endpoint, params, graph, table) {
+              MP.api.query(endpoint, params).done(function(results) {
+                var output = {}
+                var query = results["data"]["values"]
                 
-                _.each(_.keys(property), function(propertiesTwo){
-                  if (!output[propertiesTwo]) {
-                    output[propertiesTwo] = {}
-                  }
-                  var propertyTwo = property[propertiesTwo]
-                  var sum = 0;
-                
-                  _.each(_.keys(propertyTwo), function(dates){
-                    sum = sum + propertyTwo[dates]
+                _.each(_.keys(query), function(properties){
+                  var property = query[properties]
+                  
+                  _.each(_.keys(property), function(propertiesTwo){
+                    if (!output[propertiesTwo]) {
+                      output[propertiesTwo] = {}
+                    }
+                    var propertyTwo = property[propertiesTwo]
+                    var sum = 0;
+                  
+                    _.each(_.keys(propertyTwo), function(dates){
+                      sum = sum + propertyTwo[dates]
+                    });
+                    
+                    output[propertiesTwo][properties] = sum;
+                    
                   });
-                  
-                  output[propertiesTwo][properties] = sum;
-                  
                 });
-              });
-              
-              console.log(output)
-              
-              //create graph and table
-              openSheetGraph.MPChart('setData', output);
-              openSheetTable.MPTable('setData', output);
-            });
-              
-            MP.api.query(endpoint, sheetListParams).done(function(results) {
-              var listOutput = {}
-              var query = results["data"]["values"]
-              
-              _.each(_.keys(query), function(properties){
-                var property = query[properties]
                 
-                _.each(_.keys(property), function(propertiesTwo){
-                  if (!listOutput[propertiesTwo]) {
-                    listOutput[propertiesTwo] = {}
-                  }
-                  var propertyTwo = property[propertiesTwo]
-                  var sum = 0;
+                //create graph and table
+                graph.MPChart('setData', output);
+                table.MPTable('setData', output);
                 
-                  _.each(_.keys(propertyTwo), function(dates){
-                    sum = sum + propertyTwo[dates]
-                  });
-                  
-                  listOutput[propertiesTwo][properties] = sum;
-                  
-                });
               });
-              
-              sheetListGraph.MPChart('setData', listOutput);  
-              sheetListTable.MPTable('setData', listOutput);
-              
-            });
+            };
+            
+            // run queries for each event and populate graphs and tables
+            mpquery(endpoint, params, openSheetGraph, openSheetTable);
+            mpquery(endpoint, sheetListParams, sheetListGraph, sheetListTable);
           }
           
-          // if no second dimension is selected, set up normal charts
+          // if no second dimension (city or state) is selected, set up charts according to chart type selection
           else {
-            // set options for 2 MP graphs and MP tables
-            var openSheetGraph = $('#openSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
+            var params = {
+                  from: dateRange.from,
+                  to: dateRange.to,
+                  type: typeName,
+                  unit: intervalType,
+                  // set parameter that looks for the specific sponsor name by which we will filter all events
+                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
+                },
+                sheetListParams = {
+                  from: dateRange.from,
+                  to: dateRange.to,
+                  type: typeName,
+                  unit: intervalType,
+                  // set parameter that looks for the specific sponsor name by which we will filter all events
+                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
+                };
+
+                // set up graphs (according to chart type selection)
+                openSheetGraph = $('#openSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
                     tooltip: {
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
                     }
                 }}),
-                openSheetTable = $('#openSheetTable').MPTable({
-                  showPercentages: true,
-                  firstColHeader: 'Name'
-                }),
                 sheetListGraph = $('#sheetListGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
                     tooltip: {
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
                     }
-                }}),
-                sheetListTable = $('#sheetListTable').MPTable({
-                  showPercentages: true,
-                  firstColHeader: 'Name'
-                });
-          
-            // run segmentation queries
+                }});
+
+            // run segmentation queries and populate graphs and tables
             MP.api.segment('openSheet', 'name', params).done(function(openResults) {
               openSheetGraph.MPChart('setData', openResults);
               openSheetTable.MPTable('setData', openResults);
@@ -354,9 +326,11 @@
       propSelect.on('change', function() {
         if ( $(this).MPSelect('value') != '' ) {
           $('#chartSelect').hide();
+          $('#intervalSelect').hide();
         }
         else {
           $('#chartSelect').show();
+          $('#intervalSelect').show();
         }
         runQuery();
       });
