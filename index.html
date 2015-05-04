@@ -171,13 +171,14 @@
               typeName = typeSelect.MPSelect('value'),
               intervalType = intervalSelect.MPSelect('value'),
               chartTypeVal = chartSelect.MPSelect('value'),
+              multiSegType = propSelect.MPSelect('value'),
               params = {
                 from: dateRange.from,
                 to: dateRange.to,
                 type: typeName,
                 unit: intervalType,
                 // set parameter that looks for the specific sponsor name by which we will filter all events
-                "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])", 
+                "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
               },
               sheetListParams = {
                 from: dateRange.from,
@@ -185,38 +186,127 @@
                 type: typeName,
                 unit: intervalType,
                 // set parameter that looks for the specific sponsor name by which we will filter all events
-                "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])", 
-              },
+                "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
+              };
               
-              // set options for 2 MP graphs and MP tables
-              openSheetGraph = $('#openSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
-                  tooltip: {
-                      backgroundColor: '#fffce7'  // Make tooltip background yellow
-                  }
-              }}),
-              openSheetTable = $('#openSheetTable').MPTable({
-                showPercentages: true,
-                firstColHeader: 'Name'
-              }),
-              sheetListGraph = $('#sheetListGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
-                  tooltip: {
-                      backgroundColor: '#fffce7'  // Make tooltip background yellow
-                  }
-              }}),
-              sheetListTable = $('#sheetListTable').MPTable({
-                showPercentages: true,
-                firstColHeader: 'Name'
-              });
+          //find interval for bar chart 'interval' param
+          getInterval = function(dates) {
+            intervalDays = Math.ceil((dates.to - dates.from) / (24 * 60 * 60 * 1000)) + 1
+            return intervalDays
+          }
           
-          // run segmentation queries
-          MP.api.segment('openSheet', 'name', params).done(function(openResults) {
-            openSheetGraph.MPChart('setData', openResults);
-            openSheetTable.MPTable('setData', openResults);
-          });
-          MP.api.segment('sheetList', 'names', sheetListParams).done(function(listResults) {
-            sheetListGraph.MPChart('setData', listResults);
-            sheetListTable.MPTable('setData', listResults);
-          });
+          // if City or State is selected as a second dimension, set up a stacked bar chart
+          if (multiSegType) {
+            var endpoint = '/api/2.0/segmentation/multiseg',
+                params =  $.extend({}, dateRange, {
+                  'type': typeName,
+                  'inner': 'properties[\"name\"]',
+                  'outer': 'properties[\"' + multiSegType + '\"]',
+                  'event': 'openSheet',
+                  'interval': getInterval(dateRange),
+                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
+                });
+                sheetListParams =  $.extend({}, dateRange, {
+                  'type': typeName,
+                  'inner': 'properties[\"names\"]',
+                  'outer': 'properties[\"' + multiSegType + '\"]',
+                  'event': 'sheetList',
+                  'interval': getInterval(dateRange),
+                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
+                });
+                
+            //get the data from the API and reorganize the data
+            MP.api.query(endpoint, params).done(function(results) {
+              var output = {}
+              var query = results["data"]["values"]
+              
+              _.each(_.keys(query), function(properties){
+                var property = query[properties]
+                
+                _.each(_.keys(property), function(propertiesTwo){
+                  if (!output[propertiesTwo]) {
+                    output[propertiesTwo] = {}
+                  }
+                  var propertyTwo = property[propertiesTwo]
+                  var sum = 0;
+                
+                  _.each(_.keys(propertyTwo), function(dates){
+                    sum = sum + propertyTwo[dates]
+                  });
+                  
+                  output[propertiesTwo][properties] = sum;
+                  
+                });
+              });
+              
+              console.log(output)
+              
+              //create graph and table
+              openSheetGraph.MPChart('setData', output);
+              openSheetTable.MPTable('setData', output);
+            });
+              
+            MP.api.query(endpoint, params).done(function(results) {
+              var listOutput = {}
+              var query = results["data"]["values"]
+              
+              _.each(_.keys(query), function(properties){
+                var property = query[properties]
+                
+                _.each(_.keys(property), function(propertiesTwo){
+                  if (!listOutput[propertiesTwo]) {
+                    listOutput[propertiesTwo] = {}
+                  }
+                  var propertyTwo = property[propertiesTwo]
+                  var sum = 0;
+                
+                  _.each(_.keys(propertyTwo), function(dates){
+                    sum = sum + propertyTwo[dates]
+                  });
+                  
+                  listOutput[propertiesTwo][properties] = sum;
+                  
+                });
+              });
+              
+              sheetListGraph.MPChart('setData', listOutput);  
+              sheetListTable.MPTable('setData', listOutput);
+              
+            });
+          }
+          
+          // if no second dimension is selected, set up normal charts
+          else {
+            // set options for 2 MP graphs and MP tables
+            var openSheetGraph = $('#openSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
+                tooltip: {
+                    backgroundColor: '#fffce7'  // Make tooltip background yellow
+                }
+            }}),
+            openSheetTable = $('#openSheetTable').MPTable({
+              showPercentages: true,
+              firstColHeader: 'Name'
+            }),
+            sheetListGraph = $('#sheetListGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
+                tooltip: {
+                    backgroundColor: '#fffce7'  // Make tooltip background yellow
+                }
+            }}),
+            sheetListTable = $('#sheetListTable').MPTable({
+              showPercentages: true,
+              firstColHeader: 'Name'
+            });
+          
+            // run segmentation queries
+            MP.api.segment('openSheet', 'name', params).done(function(openResults) {
+              openSheetGraph.MPChart('setData', openResults);
+              openSheetTable.MPTable('setData', openResults);
+            });
+            MP.api.segment('sheetList', 'names', sheetListParams).done(function(listResults) {
+              sheetListGraph.MPChart('setData', listResults);
+              sheetListTable.MPTable('setData', listResults);
+            });
+          }
           
           $('.chart-label').show();
         }
@@ -234,6 +324,12 @@
       });
       chartSelect.on('change', function() {
         $('#openSheetGraph').html('');
+        runQuery();
+      });
+      propSelect.on('change', function() {
+        if ( $(this).MPSelect('value') != '' ) {
+          $('#chartSelect').hide();
+        }
         runQuery();
       });
       
