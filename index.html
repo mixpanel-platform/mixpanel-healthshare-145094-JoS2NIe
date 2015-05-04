@@ -325,12 +325,15 @@
       });
       propSelect.on('change', function() {
         if ( $(this).MPSelect('value') != '' ) {
+          // chart and interval selections are not relevant in a stacked bar chart
           $('#chartSelect').hide();
           $('#intervalSelect').hide();
+          $('#typeSelect').css('margin-top', '0');
         }
         else {
           $('#chartSelect').show();
           $('#intervalSelect').show();
+          $('#typeSelect').css('margin-top', '15px');
         }
         runQuery();
       });
