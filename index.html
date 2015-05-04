@@ -21,6 +21,11 @@
       .selections {
         margin: 15px 0;
       }
+      .left,
+      .right {
+        width: 50%;
+        float: left;
+      }
       #sponsor {
         margin-bottom: 15px;
         height: 31px;
@@ -68,17 +73,22 @@
         <p class="description">Please enter a sponsor name before selecting events.</p>
       </div>
       <div class="selections">
-        <form id="sponsor">
-          <input type="text" autofocus placeholder="Sponsor Name" name="sponsor-name-field" class="sponsor-name-field" value="">
-          <input type="submit" name="submit" value="Submit" class="sponsor-submit">
-        </form>
-        <div class="confirmation">
-          <p class="confirm-text"></p>
+        <div class="left">
+          <form id="sponsor">
+            <input type="text" autofocus placeholder="Sponsor Name" name="sponsor-name-field" class="sponsor-name-field" value="">
+            <input type="submit" name="submit" value="Submit" class="sponsor-submit">
+          </form>
+          <div class="confirmation">
+            <p class="confirm-text"></p>
+          </div>
+          <div id="dateSelect"></div>
+          <div id="propSelect"></div>
         </div>
-        <div id="dateSelect"></div>
-        <div id="intervalSelect"></div>
-        <div id="typeSelect"></div>
-        <div id="chartSelect"></div>
+        <div class="right">
+          <div id="intervalSelect" style="margin-top: 0"></div>
+          <div id="typeSelect"></div>
+          <div id="chartSelect"></div>
+        </div>
       </div>
       <div style="clear: both;"></div>
       <h2 class="chart-label">Open Sheet</h2>
@@ -117,9 +127,17 @@
               {label: 'Map', value: 'map'}
               ]
           }
+          options4 = {
+            items: [
+              {label: 'None', value: ''},
+              {label: 'State', value: '$region'},
+              {label: 'City', value: '$city'}
+              ]
+          }
           typeSelect = $('#typeSelect').MPSelect(options),
           intervalSelect = $('#intervalSelect').MPSelect(options2),
           chartSelect = $('#chartSelect').MPSelect(options3),
+          propSelect = $('#propSelect').MPSelect(options4),
 
           // set global variable for the sponsor by which we will filter
           sponsorName = '';
