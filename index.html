@@ -5,46 +5,220 @@
     <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/css/reset.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.css">
     <script src="https://cdn.mxpnl.com/libs/mixpanel-platform/build/mixpanel-platform.v0.latest.min.js"></script>
+    <style>
+      h1 {
+        font-size: 24px; 
+        color: rgb(95,105,131);
+      }
+      h2 {
+        font-size: 18px;
+        color: rgb(95,105,131);
+      }
+      .description {
+        font-size: 13px; 
+        color: rgb(95,105,131);
+      }
+      .selections {
+        margin: 15px 0;
+      }
+      #sponsor {
+        margin-bottom: 15px;
+        height: 31px;
+      }
+      .sponsor-name-field {
+        color: rgb(95,105,131); 
+        height: 30px; 
+        padding: 0 4px; 
+        font-size: 12px; 
+        border: 1px solid rgb(201,209,219);
+      }
+      .sponsor-submit {
+        font-weight: bold; 
+        color: rgb(95,105,131); 
+        font-size: 12px; 
+        height: 31px; 
+        padding: 0 10px; 
+        margin-left: 10px; 
+        border: 1px solid rgb(201,209,219); 
+        background-color: rgb(242,244,246);
+      }
+      .confirm-text {
+        color: rgb(95,105,131); 
+        font-size: 15px;
+      }
+      #dateSelect,
+      #intervalSelect,
+      #typeSelect {
+        margin: 15px 0;
+        display: block;
+      }
+      .report-chart {
+        margin: 15px 0;
+      }
+      .chart-label {
+        display: none;
+        margin-top: 30px;
+      }
+    </style>
   </head>
   <body class="mixpanel-platform-body">
     <div class="mixpanel-platform-section">
-      <div id="eventSelect" style="float: left;"></div>
-      <div id="by" class="mixpanel-platform-label" style="margin-left: 10px; display: none;">by</div>
-      <div id="propSelect" style="float: left;"></div>
-      <div id="dateSelect" style="float: right;"></div>
+      <div class="instructions">
+        <h1>HealthShare Sponsor Report</h1>
+        <p class="description">Please enter a sponsor name before selecting events.</p>
+      </div>
+      <div class="selections">
+        <form id="sponsor">
+          <input type="text" autofocus placeholder="Sponsor Name" name="sponsor-name-field" class="sponsor-name-field" value="">
+          <input type="submit" name="submit" value="Submit" class="sponsor-submit">
+        </form>
+        <div class="confirmation">
+          <p class="confirm-text"></p>
+        </div>
+        <div id="dateSelect"></div>
+        <div id="intervalSelect"></div>
+        <div id="typeSelect"></div>
+        <div id="chartSelect"></div>
+      </div>
       <div style="clear: both;"></div>
-      <div id="graph"></div>
+      <h2 class="chart-label">Open Sheet</h2>
+      <div id="openSheetGraph" class="report-chart"></div>
+      <div id="openSheetTable" class="report-chart"></div>
+      <h2 class="chart-label">Sheet List</h2>
+      <div id="sheetListGraph" class="report-chart"></div>
+      <div id="sheetListTable" class="report-chart"></div>
     </div>
-    <div id="table"></div>
     <script>
-      var eventSelect = $('#eventSelect').MPEventSelect();
-      var propSelect  = $('#propSelect').MPPropertySelect();
-      var dateSelect  = $('#dateSelect').MPDatepicker();
-      var eventGraph  = $('#graph').MPChart({chartType: 'line'});
-      var eventTable  = $('#table').MPTable({
-        showPercentages: true,
-        firstColHeader: 'Event'
-      });
+    
+      // populate dropdowns and add a date picker
+      var dateSelect  = $('#dateSelect').MPDatepicker(),
+          // add type select (total, unique, average), interval select (hour, day, week, month),
+          // and chart select (line, bar, pie, map)
+          options = {
+            items: [
+              {label: 'Total', value: 'general'},
+              {label: 'Unique', value: 'unique'},
+              {label: 'Average', value: 'average'}
+              ]
+          },
+          options2 = {
+            items: [
+              {label: 'Hour', value: 'hour'},
+              {label: 'Day', value: 'day'},
+              {label: 'Week', value: 'week'},
+              {label: 'Month', value: 'month'}
+              ]
+          },
+          options3 = {
+            items: [
+              {label: 'Line', value: 'line'},
+              {label: 'Bar', value: 'bar'},
+              {label: 'Pie', value: 'pie'},
+              {label: 'Map', value: 'map'}
+              ]
+          }
+          typeSelect = $('#typeSelect').MPSelect(options),
+          intervalSelect = $('#intervalSelect').MPSelect(options2),
+          chartSelect = $('#chartSelect').MPSelect(options3),
 
-      var runQuery = function() {
-        var eventName = eventSelect.MPEventSelect('value'),
-            propName  = propSelect.MPPropertySelect('value'),
-            dateRange = dateSelect.MPDatepicker('value');
+          // set global variable for the sponsor by which we will filter
+          sponsorName = '';
 
-        if (eventName) {
-          MP.api.segment(eventName, propName, dateRange).done(function(results) {
-            eventGraph.MPChart('setData', results);
-            eventTable.MPTable('setData', results);
-          });
-        }
-      };
-      eventSelect.on('change', function(e, eventName) {
-        propSelect.MPPropertySelect('setEvent', eventName);
-        $("#by").show();
+      // set default interval to daily
+      $('#intervalSelect').val('day');
+
+      // record search term when company name is submitted and find # users who match search term
+      $('#sponsor').submit(function(e) {
+        e.preventDefault();
+        sponsorName = $('#sponsor input:first').val();
+        $('.confirm-text').html("Sponsor: <strong>" + sponsorName + "</strong>").css('color', 'rgb(95,105,131)');
+        $('#sponsor input:first').val('');
         runQuery();
       });
-      propSelect.on('change', runQuery);
-      dateSelect.on('change', runQuery);
+
+      // run segmentation queries for 2 events filtered by "sponsor contains [search term]" and segmented by "name"
+      function runQuery() {
+        
+        // return error if no search term was submitted
+        if (!sponsorName) {
+          $('.confirm-text')
+            .html("Error: Please enter a sponsor name above.")
+            .css("color", "red");
+        }
+        
+        // otherwise, if search term was submitted run function
+        else {
+          
+          var dateRange = dateSelect.MPDatepicker('value'),
+              typeName = typeSelect.MPSelect('value'),
+              intervalType = intervalSelect.MPSelect('value'),
+              chartTypeVal = chartSelect.MPSelect('value'),
+              params = {
+                from: dateRange.from,
+                to: dateRange.to,
+                type: typeName,
+                unit: intervalType,
+                // set parameter that looks for the specific sponsor name by which we will filter all events
+                "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])", 
+              },
+              sheetListParams = {
+                from: dateRange.from,
+                to: dateRange.to,
+                type: typeName,
+                unit: intervalType,
+                // set parameter that looks for the specific sponsor name by which we will filter all events
+                "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])", 
+              },
+              
+              // set options for 2 MP graphs and MP tables
+              openSheetGraph = $('#openSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
+                  tooltip: {
+                      backgroundColor: '#fffce7'  // Make tooltip background yellow
+                  }
+              }}),
+              openSheetTable = $('#openSheetTable').MPTable({
+                showPercentages: true,
+                firstColHeader: 'Name'
+              }),
+              sheetListGraph = $('#sheetListGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
+                  tooltip: {
+                      backgroundColor: '#fffce7'  // Make tooltip background yellow
+                  }
+              }}),
+              sheetListTable = $('#sheetListTable').MPTable({
+                showPercentages: true,
+                firstColHeader: 'Name'
+              });
+          
+          // run segmentation queries
+          MP.api.segment('openSheet', 'name', params).done(function(openResults) {
+            openSheetGraph.MPChart('setData', openResults);
+            openSheetTable.MPTable('setData', openResults);
+          });
+          MP.api.segment('sheetList', 'names', sheetListParams).done(function(listResults) {
+            sheetListGraph.MPChart('setData', listResults);
+            sheetListTable.MPTable('setData', listResults);
+          });
+          
+          $('.chart-label').show();
+        }
+      };
+      
+      // set functions to run when dropdowns change
+      dateSelect.on('change', function() {
+        runQuery();
+      });
+      typeSelect.on('change', function() {
+        runQuery();
+      });
+      intervalSelect.on('change', function() {
+        runQuery();
+      });
+      chartSelect.on('change', function() {
+        $('#openSheetGraph').html('');
+        runQuery();
+      });
+      
     </script>
   </body>
 </html>
