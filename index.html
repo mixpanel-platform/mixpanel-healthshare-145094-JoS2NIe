@@ -93,10 +93,10 @@
       </div>
       <div style="clear: both;"></div>
       <div class="report">
-        <h2 class="chart-label">Open Sheet</h2>
+        <h2 class="chart-label">Fact Sheet Opens</h2>
         <div id="openSheetGraph" class="report-chart"></div>
         <div id="openSheetTable" class="report-chart"></div>
-        <h2 class="chart-label">Sheet List</h2>
+        <h2 class="chart-label">Fact Sheet Triggers</h2>
         <div id="sheetListGraph" class="report-chart"></div>
         <div id="sheetListTable" class="report-chart"></div>
       </div>
@@ -140,7 +140,10 @@
           propSelect = $('#propSelect').MPSelect(options4),
 
           // set global variable for the sponsor by which we will filter
-          sponsorName = '';
+          sponsorName = '',
+          
+          // set May 1 date to avoid any data before May 1, 2015
+          may1 = new Date(2015,4,1,0,0,0,0);
 
       // set default interval to daily
       $('#intervalSelect').val('day');
@@ -168,24 +171,27 @@
         else {
           
           // reset html for each new query (necessary for chart type changes)
-          $('.report').html('<h2 class="chart-label">Open Sheet</h2><div id="openSheetGraph" class="report-chart"></div><div id="openSheetTable" class="report-chart"></div><h2 class="chart-label">Sheet List</h2><div id="sheetListGraph" class="report-chart"></div><div id="sheetListTable" class="report-chart"></div>');
+          $('.report').html('<h2 class="chart-label">Fact Sheet Opens</h2><div id="openSheetGraph" class="report-chart"></div><div id="openSheetTable" class="report-chart"></div><h2 class="chart-label">Fact Sheet Triggers</h2><div id="sheetListGraph" class="report-chart"></div><div id="sheetListTable" class="report-chart"></div>');
           
           // grab values from dropdowns and set up tables
           var dateRange = dateSelect.MPDatepicker('value'),
+              newFromDate,
               typeName = typeSelect.MPSelect('value'),
               intervalType = intervalSelect.MPSelect('value'),
               chartTypeVal = chartSelect.MPSelect('value'),
               multiSegType = propSelect.MPSelect('value'),
               openSheetTable = $('#openSheetTable').MPTable({
-                showPercentages: true,
                 firstColHeader: 'Name'
               }),
               sheetListTable = $('#sheetListTable').MPTable({
-                showPercentages: true,
                 firstColHeader: 'Name'
               });
-
           
+          // restrict from date to May 1, 2015    
+          if ( dateRange.from < may1 ) {
+            dateRange.from = may1;
+          }
+
           // if city or state is selected as a second dimension, set up stacked bar charts
           if (multiSegType) {
             
