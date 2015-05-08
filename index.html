@@ -93,12 +93,15 @@
       </div>
       <div style="clear: both;"></div>
       <div class="report">
-        <h2 class="chart-label">Fact Sheet Opens</h2>
-        <div id="openSheetGraph" class="report-chart"></div>
-        <div id="openSheetTable" class="report-chart"></div>
         <h2 class="chart-label">Fact Sheet Triggers</h2>
         <div id="sheetListGraph" class="report-chart"></div>
         <div id="sheetListTable" class="report-chart"></div>
+        <h2 class="chart-label">Fact Sheet Opens</h2>
+        <div id="openSheetGraph" class="report-chart"></div>
+        <div id="openSheetTable" class="report-chart"></div>
+        <h2 class="chart-label">Fact Sheet E-mails</h2>
+        <div id="emailSheetGraph" class="report-chart"></div>
+        <div id="emailSheetTable" class="report-chart"></div>
       </div>
     </div>
     <script>
@@ -108,22 +111,19 @@
           options = {
             items: [
               {label: 'Total', value: 'general'},
-              {label: 'Unique', value: 'unique'},
-              {label: 'Average', value: 'average'}
+              {label: 'Unique', value: 'unique'}
               ]
           },
           options2 = {
             items: [
-              {label: 'Hour', value: 'hour'},
-              {label: 'Day', value: 'day'},
               {label: 'Week', value: 'week'},
               {label: 'Month', value: 'month'}
               ]
           },
           options3 = {
             items: [
-              {label: 'Line', value: 'line'},
               {label: 'Bar', value: 'bar'},
+              {label: 'Line', value: 'line'},
               {label: 'Pie', value: 'pie'}
               ]
           }
@@ -144,9 +144,6 @@
           
           // set May 1 date to avoid any data before May 1, 2015
           may1 = new Date(2015,4,1,0,0,0,0);
-
-      // set default interval to daily
-      $('#intervalSelect').val('day');
 
       // record search term when sponsor name is submitted
       $('#sponsor').submit(function(e) {
@@ -171,7 +168,7 @@
         else {
           
           // reset html for each new query (necessary for chart type changes)
-          $('.report').html('<h2 class="chart-label">Fact Sheet Opens</h2><div id="openSheetGraph" class="report-chart"></div><div id="openSheetTable" class="report-chart"></div><h2 class="chart-label">Fact Sheet Triggers</h2><div id="sheetListGraph" class="report-chart"></div><div id="sheetListTable" class="report-chart"></div>');
+          $('.report').html('<h2 class="chart-label">Fact Sheet Triggers</h2><div id="sheetListGraph" class="report-chart"></div><div id="sheetListTable" class="report-chart"></div><h2 class="chart-label">Fact Sheet Opens</h2><div id="openSheetGraph" class="report-chart"></div><div id="openSheetTable" class="report-chart"></div><h2 class="chart-label">Fact Sheet E-mails</h2><div id="emailSheetGraph" class="report-chart"></div><div id="emailSheetTable" class="report-chart"></div>');
           
           // grab values from dropdowns and set up tables
           var dateRange = dateSelect.MPDatepicker('value'),
@@ -184,6 +181,9 @@
                 firstColHeader: 'Name'
               }),
               sheetListTable = $('#sheetListTable').MPTable({
+                firstColHeader: 'Name'
+              });
+              emailSheetTable = $('#emailSheetTable').MPTable({
                 firstColHeader: 'Name'
               });
           
@@ -220,6 +220,15 @@
                   // set parameter that looks for the specific sponsor name by which we will filter all events
                   "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
                 }),
+                emailParams =  $.extend({}, dateRange, {
+                  "type": typeName,
+                  "inner": "properties[\"" + multiSegType + "\"]",
+                  "outer": "properties[\"name\"]",
+                  "event": "emailSheet",
+                  "interval": getInterval(dateRange),
+                  // set parameter that looks for the specific sponsor name by which we will filter all events
+                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
+                }),
                 
                 // set up stacked bar graphs
                 openSheetGraph = $('#openSheetGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
@@ -228,6 +237,11 @@
                     }
                 }}),
                 sheetListGraph = $('#sheetListGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
+                    tooltip: {
+                        backgroundColor: '#fffce7'  // Make tooltip background yellow
+                    }
+                }});
+                emailSheetGraph = $('#emailSheetGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
                     tooltip: {
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
                     }
@@ -268,6 +282,7 @@
             // run queries for each event and populate graphs and tables
             mpquery(endpoint, params, openSheetGraph, openSheetTable);
             mpquery(endpoint, sheetListParams, sheetListGraph, sheetListTable);
+            mpquery(endpoint, emailParams, emailSheetGraph, emailSheetTable);
           }
           
           // if no second dimension (city or state) is selected, set up charts according to chart type selection
@@ -300,15 +315,26 @@
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
                     }
                 }});
-
+                emailSheetGraph = $('#emailSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
+                    tooltip: {
+                        backgroundColor: '#fffce7'  // Make tooltip background yellow
+                    }
+                }});
+                
             // run segmentation queries and populate graphs and tables
             MP.api.segment('openSheet', 'name', params).done(function(openResults) {
+              console.log(openResults.values());
               openSheetGraph.MPChart('setData', openResults);
               openSheetTable.MPTable('setData', openResults);
             });
             MP.api.segment('sheetList', 'names', sheetListParams).done(function(listResults) {
+              console.log(listResults.values());
               sheetListGraph.MPChart('setData', listResults);
               sheetListTable.MPTable('setData', listResults);
+            });
+            MP.api.segment('emailSheet', 'name', params).done(function(emailResults) {
+              emailSheetGraph.MPChart('setData', emailResults);
+              emailSheetTable.MPTable('setData', emailResults);
             });
           }
           
