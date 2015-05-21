@@ -211,34 +211,19 @@
             }
 
             var endpoint = '/api/2.0/segmentation/multiseg',
-                params =  $.extend({}, dateRange, {
+                params =  $.extend({}, {
                   "type": typeName,
                   "inner": "properties[\"" + multiSegType + "\"]",
-                  "outer": "properties[\"name\"]",
-                  "event": "openSheet",
-                  "interval": getInterval(dateRange),
-                  // set parameter that looks for the specific sponsor name by which we will filter all events
-                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
-                });
-                sheetListParams =  $.extend({}, listDateRange, {
-                  "type": typeName,
-                  "inner": "properties[\"" + multiSegType + "\"]",
-                  "outer": "properties[\"names\"]",
-                  "event": "sheetList",
-                  "interval": getInterval(listDateRange),
-                  // set parameter that looks for the specific sponsor name by which we will filter all events
-                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
                 }),
-                emailParams =  $.extend({}, dateRange, {
-                  "type": typeName,
-                  "inner": "properties[\"" + multiSegType + "\"]",
-                  "outer": "properties[\"name\"]",
-                  "event": "emailSheet",
-                  "interval": getInterval(dateRange),
-                  // set parameter that looks for the specific sponsor name by which we will filter all events
-                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
-                }),
-                
+                propertyMap = {
+                  'openSheet': 'sponsor', 
+                  'sheetList': 'sponsors', 
+                  'emailSheet': 'sponsor', 
+                  'HCN Fact Sheet Widget v1.0: openSheet': 'sheet_sponsor',
+                  'HCN Fact Sheet Widget v1.0: sheetList': 'sheet_sponsor',
+                  'HCN Fact Sheet Widget v1.0: sendEmail': 'sheet_sponsor'
+                },
+
                 // set up stacked bar graphs
                 openSheetGraph = $('#openSheetGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
                     tooltip: {
@@ -249,7 +234,7 @@
                     tooltip: {
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
                     }
-                }});
+                }}),
                 emailSheetGraph = $('#emailSheetGraph').MPChart({chartType: 'bar', stacked: true, highchartsOptions: {
                     tooltip: {
                         backgroundColor: '#fffce7'  // Make tooltip background yellow
@@ -257,41 +242,76 @@
                 }});
                 
             // query an event segmented by 2 properties and reorganize the data for a stacked bar chart
-            function mpquery(endpoint, params, graph, table) {
-              MP.api.query(endpoint, params).done(function(results) {
-                var output = {}
-                var query = results["data"]["values"]
-                
-                _.each(_.keys(query), function(properties){
-                  var property = query[properties]
-                  
-                  _.each(_.keys(property), function(propertiesTwo){
-                    if (!output[propertiesTwo]) {
-                      output[propertiesTwo] = {}
-                    }
-                    var propertyTwo = property[propertiesTwo]
-                    var sum = 0;
-                  
-                    _.each(_.keys(propertyTwo), function(dates){
-                      sum = sum + propertyTwo[dates]
-                    });
-                    
-                    output[propertiesTwo][properties] = sum;
-                    
+            function multiquery(endpoint, event1, prop1, event2, prop2, date, graph, table) {
+              var params1 = $.extend({}, params, date, {
+                    "event": event1, 
+                    "outer": "properties[\"" + prop1 + "\"]", 
+                    "interval": getInterval(dateRange),
+                    "where": "\"" + sponsorName + "\" in string(properties[\"" + propertyMap[event1] + "\"])"
+                  }),
+                  params2 = $.extend({}, params, date, {
+                    "event": event2, 
+                    "outer": "properties[\"" + prop2 + "\"]", 
+                    "interval": getInterval(dateRange),
+                    "where": "\"" + sponsorName + "\" in string(properties[\"" + propertyMap[event2] + "\"])"
                   });
+                  
+              MP.api.query(endpoint, params1).done(function(results1) {
+                MP.api.query(endpoint, params2).done(function(results2) {
+                  var output = {},
+                      query = results1["data"]["values"],
+                      query2 = results2["data"]["values"];
+                  
+                  _.each(_.keys(query), function(properties){
+                    var property = query[properties]
+                    
+                    _.each(_.keys(property), function(propertiesTwo){
+                      if (!output[propertiesTwo]) {
+                        output[propertiesTwo] = {}
+                      }
+                      var propertyTwo = property[propertiesTwo]
+                      var sum = 0;
+                    
+                      _.each(_.keys(propertyTwo), function(dates){
+                        sum = sum + propertyTwo[dates]
+                      });
+                      
+                      output[propertiesTwo][properties] = sum;
+                      
+                    });
+                  });
+
+                  _.each(_.keys(query2), function(properties){
+                    var property = query2[properties]
+                    
+                    _.each(_.keys(property), function(propertiesTwo){
+                      if (!output[propertiesTwo]) {
+                        output[propertiesTwo] = {}
+                      }
+                      var propertyTwo = property[propertiesTwo]
+                      var sum = 0;
+                    
+                      _.each(_.keys(propertyTwo), function(dates){
+                        sum = sum + propertyTwo[dates]
+                      });
+                      
+                      output[propertiesTwo][properties] = sum;
+                      
+                    });
+                  });
+
+                  //create graph and table
+                  graph.MPChart('setData', output);
+                  table.MPTable('setData', output);
+
                 });
-                
-                //create graph and table
-                graph.MPChart('setData', output);
-                table.MPTable('setData', output);
-                
               });
             };
             
             // run queries for each event and populate graphs and tables
-            mpquery(endpoint, params, openSheetGraph, openSheetTable);
-            mpquery(endpoint, sheetListParams, sheetListGraph, sheetListTable);
-            mpquery(endpoint, emailParams, emailSheetGraph, emailSheetTable);
+            multiquery(endpoint, 'openSheet', 'name', 'HCN Fact Sheet Widget v1.0: openSheet', 'sheet_name', dateRange, openSheetGraph, openSheetTable);
+            multiquery(endpoint, 'sheetList', 'names', 'HCN Fact Sheet Widget v1.0: sheetList', 'sheet_name', listDateRange, sheetListGraph, sheetListTable);
+            multiquery(endpoint, 'emailSheet', 'name', 'HCN Fact Sheet Widget v1.0: sendEmail', 'sheet_name', dateRange, emailSheetGraph, emailSheetTable);
           }
           
           // if no second dimension (city or state) is selected, set up charts according to chart type selection
@@ -301,17 +321,21 @@
                   to: dateRange.to,
                   type: typeName,
                   unit: intervalType,
-                  // set parameter that looks for the specific sponsor name by which we will filter all events
-                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
                 },
                 sheetListParams = {
                   from: listDateRange.from,
                   to: listDateRange.to,
                   type: typeName,
                   unit: intervalType,
-                  // set parameter that looks for the specific sponsor name by which we will filter all events
-                  "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
-                };
+                },
+                propertyMap = {
+                  'openSheet': 'sponsor', 
+                  'sheetList': 'sponsors', 
+                  'emailSheet': 'sponsor', 
+                  'HCN Fact Sheet Widget v1.0: openSheet': 'sheet_sponsor',
+                  'HCN Fact Sheet Widget v1.0: sheetList': 'sheet_sponsor',
+                  'HCN Fact Sheet Widget v1.0: sendEmail': 'sheet_sponsor'
+                },
 
                 // set up graphs (according to chart type selection)
                 openSheetGraph = $('#openSheetGraph').MPChart({chartType: chartTypeVal, highchartsOptions: {
@@ -331,18 +355,26 @@
                 }});
                 
             // run segmentation queries and populate graphs and tables
-            MP.api.segment('openSheet', 'name', params).done(function(openResults) {
-              openSheetGraph.MPChart('setData', openResults);
-              openSheetTable.MPTable('setData', openResults);
-            });
-            MP.api.segment('sheetList', 'names', sheetListParams).done(function(listResults) {
-              sheetListGraph.MPChart('setData', listResults);
-              sheetListTable.MPTable('setData', listResults);
-            });
-            MP.api.segment('emailSheet', 'name', params).done(function(emailResults) {
-              emailSheetGraph.MPChart('setData', emailResults);
-              emailSheetTable.MPTable('setData', emailResults);
-            });
+            
+            function mpquery(event1, property1, event2, property2, graph, table) {
+              var params1 = $.extend({}, params, {
+                    "where": "\"" + sponsorName + "\" in string(properties[\"" + propertyMap[event1] + "\"])"
+                  }),
+                  params2 = $.extend({}, params, {
+                    "where": "\"" + sponsorName + "\" in string(properties[\"" + propertyMap[event2] + "\"])"
+                  });
+              MP.api.segment(event1, property1, params1).done(function(results1) {
+                MP.api.segment(event2, property2, params2).done(function(results2) {
+                  var newResults = $.extend({}, results1.values(), results2.values());
+                  graph.MPChart('setData', newResults);
+                  table.MPTable('setData', newResults);
+                });
+              });
+            }
+            
+            mpquery('openSheet', 'name', 'HCN Fact Sheet Widget v1.0: openSheet', 'sheet_name', openSheetGraph, openSheetTable);
+            mpquery('sheetList', 'names', 'HCN Fact Sheet Widget v1.0: sheetList', 'sheet_name', sheetListGraph, sheetListTable);
+            mpquery('emailSheet', 'name', 'HCN Fact Sheet Widget v1.0: sendEmail', 'sheet_name', emailSheetGraph, emailSheetTable);
           }
           
           $('.chart-label').show();
