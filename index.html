@@ -141,7 +141,8 @@
           // set global variable for the sponsor by which we will filter
           sponsorName = '',
           
-          // set May 1 date to avoid any data before May 1, 2015
+          // set April 1 and May 1, 2015 dates to avoid any data before those dates
+          apr1 = new Date(2015,3,1,0,0,0,0);
           may1 = new Date(2015,4,1,0,0,0,0);
 
       // record search term when sponsor name is submitted
@@ -170,8 +171,9 @@
           $('.report').html('<h2 class="chart-label">Fact Sheet Triggers</h2><div id="sheetListGraph" class="report-chart"></div><div id="sheetListTable" class="report-chart"></div><h2 class="chart-label">Fact Sheet Opens</h2><div id="openSheetGraph" class="report-chart"></div><div id="openSheetTable" class="report-chart"></div><h2 class="chart-label">Fact Sheet E-mails</h2><div id="emailSheetGraph" class="report-chart"></div><div id="emailSheetTable" class="report-chart"></div>');
           
           // grab values from dropdowns and set up tables
-          var dateRange = dateSelect.MPDatepicker('value'),
-              newFromDate,
+          var dates = dateSelect.MPDatepicker('value'),
+              dateRange = {},
+              listDateRange = {},
               typeName = typeSelect.MPSelect('value'),
               intervalType = intervalSelect.MPSelect('value'),
               chartTypeVal = chartSelect.MPSelect('value'),
@@ -185,15 +187,23 @@
               emailSheetTable = $('#emailSheetTable').MPTable({
                 firstColHeader: 'Name'
               });
-          
-          // restrict from date to May 1, 2015    
+              
+          dateRange['from'] = dates.from;
+          dateRange['to'] = dates.to;
+          listDateRange['from'] = dates.from;
+          listDateRange['to'] = dates.to;
+              
+          // restrict from date to April 1, 2015 for sheetList and May 1, 2015 for other events
+          if ( listDateRange.from < apr1 ) {
+            listDateRange.from = apr1;
+          }
           if ( dateRange.from < may1 ) {
             dateRange.from = may1;
           }
 
           // if city or state is selected as a second dimension, set up stacked bar charts
           if (multiSegType) {
-            
+
             // find interval for bar chart 'interval' param
             getInterval = function(dates) {
               intervalDays = Math.ceil((dates.to - dates.from) / (24 * 60 * 60 * 1000)) + 1
@@ -210,12 +220,12 @@
                   // set parameter that looks for the specific sponsor name by which we will filter all events
                   "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
                 });
-                sheetListParams =  $.extend({}, dateRange, {
+                sheetListParams =  $.extend({}, listDateRange, {
                   "type": typeName,
                   "inner": "properties[\"" + multiSegType + "\"]",
                   "outer": "properties[\"names\"]",
                   "event": "sheetList",
-                  "interval": getInterval(dateRange),
+                  "interval": getInterval(listDateRange),
                   // set parameter that looks for the specific sponsor name by which we will filter all events
                   "where": "\"" + sponsorName + "\" in string(properties[\"sponsors\"])"
                 }),
@@ -295,8 +305,8 @@
                   "where": "\"" + sponsorName + "\" in string(properties[\"sponsor\"])"
                 },
                 sheetListParams = {
-                  from: dateRange.from,
-                  to: dateRange.to,
+                  from: listDateRange.from,
+                  to: listDateRange.to,
                   type: typeName,
                   unit: intervalType,
                   // set parameter that looks for the specific sponsor name by which we will filter all events
@@ -322,12 +332,10 @@
                 
             // run segmentation queries and populate graphs and tables
             MP.api.segment('openSheet', 'name', params).done(function(openResults) {
-              console.log(openResults.values());
               openSheetGraph.MPChart('setData', openResults);
               openSheetTable.MPTable('setData', openResults);
             });
             MP.api.segment('sheetList', 'names', sheetListParams).done(function(listResults) {
-              console.log(listResults.values());
               sheetListGraph.MPChart('setData', listResults);
               sheetListTable.MPTable('setData', listResults);
             });
